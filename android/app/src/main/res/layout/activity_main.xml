@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#0D1117"
+    android:padding="12dp">
+
+    <!-- Connection Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <EditText
+            android:id="@+id/etIp"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_weight="1.6"
+            android:hint="PC IP (e.g. 192.168.1.5)"
+            android:textColorHint="#6E7681"
+            android:textColor="#FFFFFF"
+            android:background="#161B22"
+            android:paddingHorizontal="10dp"
+            android:textSize="14sp"
+            android:inputType="textUri" />
+
+        <EditText
+            android:id="@+id/etPin"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_weight="1.1"
+            android:layout_marginStart="6dp"
+            android:hint="8-digit PIN"
+            android:textColorHint="#6E7681"
+            android:textColor="#FFFFFF"
+            android:background="#161B22"
+            android:paddingHorizontal="8dp"
+            android:textSize="14sp"
+            android:maxLength="8"
+            android:inputType="number" />
+
+        <Button
+            android:id="@+id/btnConnect"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:layout_marginStart="6dp"
+            android:text="Connect"
+            android:textSize="13sp"
+            android:backgroundTint="#238636"
+            android:textColor="#FFFFFF" />
+    </LinearLayout>
+
+    <!-- Status Text -->
+    <TextView
+        android:id="@+id/tvStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Not connected"
+        android:textColor="#8B949E"
+        android:textSize="12sp"
+        android:gravity="center"
+        android:layout_marginVertical="6dp" />
+
+    <!-- Mode Selector -->
+    <RadioGroup
+        android:id="@+id/rgMode"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginBottom="8dp">
+
+        <RadioButton
+            android:id="@+id/rbTouchpad"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Touchpad Mode"
+            android:textColor="#C9D1D9"
+            android:checked="true"
+            android:buttonTint="#58A6FF"
+            android:layout_marginEnd="16dp" />
+
+        <RadioButton
+            android:id="@+id/rbAirMouse"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Gyro Air-Mouse"
+            android:textColor="#C9D1D9"
+            android:buttonTint="#58A6FF" />
+    </RadioGroup>
+
+    <!-- Pause/Recenter button for Air Mouse -->
+    <Button
+        android:id="@+id/btnRecenter"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:text="Pause Motion"
+        android:visibility="gone"
+        android:backgroundTint="#30363D"
+        android:textColor="#58A6FF"
+        android:layout_marginBottom="8dp" />
+
+    <!-- Touchpad View -->
+    <FrameLayout
+        android:id="@+id/viewTouchpad"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#161B22">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Touchpad Surface\n(Drag to move, Tap to click)"
+            android:textColor="#30363D"
+            android:textSize="14sp"
+            android:gravity="center"
+            android:layout_gravity="center" />
+    </FrameLayout>
+
+    <!-- Left & Right Click Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp">
+
+        <Button
+            android:id="@+id/btnLeftClick"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="LEFT CLICK"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:backgroundTint="#21262D"
+            android:textColor="#FFFFFF" />
+
+        <Button
+            android:id="@+id/btnRightClick"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:text="RIGHT CLICK"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:backgroundTint="#21262D"
+            android:textColor="#FFFFFF" />
+    </LinearLayout>
+
+    <!-- Special Keys Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp">
+
+        <Button
+            android:id="@+id/btnKeySpace"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="Space"
+            android:textSize="11sp"
+            android:backgroundTint="#161B22"
+            android:textColor="#C9D1D9" />
+
+        <Button
+            android:id="@+id/btnKeyEnter"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="4dp"
+            android:text="Enter"
+            android:textSize="11sp"
+            android:backgroundTint="#161B22"
+            android:textColor="#C9D1D9" />
+
+        <Button
+            android:id="@+id/btnKeyBackspace"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="4dp"
+            android:text="⌫ Del"
+            android:textSize="11sp"
+            android:backgroundTint="#161B22"
+            android:textColor="#C9D1D9" />
+
+        <Button
+            android:id="@+id/btnKeyEsc"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="4dp"
+            android:text="Esc"
+            android:textSize="11sp"
+            android:backgroundTint="#161B22"
+            android:textColor="#C9D1D9" />
+    </LinearLayout>
+
+    <!-- Text Typing Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp">
+
+        <EditText
+            android:id="@+id/etTextInput"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:hint="Type text to PC..."
+            android:textColorHint="#6E7681"
+            android:textColor="#FFFFFF"
+            android:background="#161B22"
+            android:paddingHorizontal="10dp"
+            android:textSize="13sp" />
+
+        <Button
+            android:id="@+id/btnSendText"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_marginStart="6dp"
+            android:text="Send"
+            android:textSize="12sp"
+            android:backgroundTint="#1F6FEB"
+            android:textColor="#FFFFFF" />
+    </LinearLayout>
+
+</LinearLayout>

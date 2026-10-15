@@ -8,3 +8,18 @@ venv/
 .idea/
 .vscode/
 *.log
+
+# C++ builds
+*.exe
+*.obj
+*.o
+build/
+CMakeCache.txt
+CMakeFiles/
+
+# Android builds
+.gradle/
+android/app/build/
+android/.gradle/
+android/local.properties
+*.iml
