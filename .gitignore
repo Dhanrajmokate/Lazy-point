@@ -23,3 +23,7 @@ android/app/build/
 android/.gradle/
 android/local.properties
 *.iml
+
+# Local device pairing and PIN
+pin.txt
+paired_devices.txt

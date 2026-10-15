@@ -74,6 +74,8 @@ Authentication completes instantly without prompting for a PIN! If a device is r
 
 Each command below is one line. The PC responds `OK\n` when Windows accepts the requested input (or the command has no required effect), `ERR command\n` for invalid data, and `ERR input\n` if input injection fails. See the error table below for connection behavior. `OK` does not confirm that a target application handled the input.
 
+> **Note on High-Frequency `MOVE` Commands:** To support 100 Hz – 200 Hz+ sensor polling without TCP reply queue flooding or latency jitter, the receiver silently processes successful `MOVE` commands without sending `OK\n`. Any error during `MOVE` still returns `ERR command\n` or `ERR input\n`. All other commands (`BUTTON`, `KEY`, `TEXT`, `PING`) continue to reply `OK\n`.
+
 ### Move the pointer
 
 ```text

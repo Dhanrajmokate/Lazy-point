@@ -27,6 +27,16 @@
             android:textSize="12sp" />
 
         <Button
+            android:id="@+id/btnDevicesList"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:text="📋 Devices"
+            android:textSize="10sp"
+            android:backgroundTint="#21262D"
+            android:textColor="#58A6FF"
+            android:layout_marginEnd="4dp" />
+
+        <Button
             android:id="@+id/btnForget"
             android:layout_width="wrap_content"
             android:layout_height="32dp"
@@ -53,7 +63,8 @@
             android:textColorHint="#6E7681"
             android:textColor="#FFFFFF"
             android:background="#161B22"
-            android:paddingHorizontal="10dp"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp"
             android:textSize="14sp"
             android:inputType="textUri" />
 
@@ -67,10 +78,21 @@
             android:textColorHint="#6E7681"
             android:textColor="#FFFFFF"
             android:background="#161B22"
-            android:paddingHorizontal="8dp"
+            android:paddingLeft="8dp"
+            android:paddingRight="8dp"
             android:textSize="14sp"
             android:maxLength="8"
             android:inputType="number" />
+
+        <Button
+            android:id="@+id/btnScanQr"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:layout_marginStart="6dp"
+            android:text="📷 QR"
+            android:textSize="12sp"
+            android:backgroundTint="#1F6FEB"
+            android:textColor="#FFFFFF" />
 
         <Button
             android:id="@+id/btnConnect"
@@ -94,59 +116,67 @@
         android:gravity="center"
         android:layout_marginVertical="6dp" />
 
-    <!-- Mode Selector -->
-    <RadioGroup
-        android:id="@+id/rgMode"
+    <!-- Cursor Sensitivity Controller -->
+    <LinearLayout
+        android:id="@+id/layoutSensitivity"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center"
+        android:orientation="vertical"
+        android:background="#161B22"
+        android:padding="10dp"
         android:layout_marginBottom="8dp">
 
-        <RadioButton
-            android:id="@+id/rbTouchpad"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Touchpad Mode"
-            android:textColor="#C9D1D9"
-            android:checked="true"
-            android:buttonTint="#58A6FF"
-            android:layout_marginEnd="16dp" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
-        <RadioButton
-            android:id="@+id/rbAirMouse"
-            android:layout_width="wrap_content"
+            <TextView
+                android:id="@+id/tvSensitivityLabel"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="⚡ Cursor Sensitivity: 1.0x"
+                android:textColor="#58A6FF"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Precise ↔ Fast"
+                android:textColor="#8B949E"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <SeekBar
+            android:id="@+id/sbSensitivity"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Gyro Air-Mouse"
-            android:textColor="#C9D1D9"
-            android:buttonTint="#58A6FF" />
-    </RadioGroup>
+            android:max="280"
+            android:progress="80"
+            android:progressTint="#58A6FF"
+            android:thumbTint="#58A6FF"
+            android:layout_marginTop="6dp" />
+    </LinearLayout>
 
-    <!-- Pause/Recenter button for Air Mouse -->
-    <Button
-        android:id="@+id/btnRecenter"
-        android:layout_width="match_parent"
-        android:layout_height="44dp"
-        android:text="Pause Motion"
-        android:visibility="gone"
-        android:backgroundTint="#30363D"
-        android:textColor="#58A6FF"
-        android:layout_marginBottom="8dp" />
-
-    <!-- Touchpad View -->
+    <!-- Touchpad View (Primary Surface) -->
     <FrameLayout
         android:id="@+id/viewTouchpad"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
+        android:visibility="visible"
         android:background="#161B22">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Touchpad Surface\n(Drag to move, Tap to click)"
-            android:textColor="#30363D"
-            android:textSize="14sp"
+            android:text="📱 Touchpad Surface\n\n• Slide finger to move cursor\n• Tap for Left Click\n• 2-Finger Tap for Right Click"
+            android:textColor="#484F58"
+            android:textSize="13sp"
+            android:lineSpacingExtra="4dp"
             android:gravity="center"
             android:layout_gravity="center" />
     </FrameLayout>
@@ -182,84 +212,204 @@
             android:textColor="#FFFFFF" />
     </LinearLayout>
 
-    <!-- Special Keys Bar -->
+    <!-- Media & Quick Keys Bar -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="40dp"
+        android:layout_height="36dp"
         android:orientation="horizontal"
-        android:layout_marginTop="8dp">
+        android:layout_marginTop="6dp">
 
         <Button
-            android:id="@+id/btnKeySpace"
+            android:id="@+id/btnKeyVolDown"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:text="Space"
+            android:text="🔉 -"
             android:textSize="11sp"
-            android:backgroundTint="#161B22"
-            android:textColor="#C9D1D9" />
+            android:backgroundTint="#21262D"
+            android:textColor="#58A6FF" />
 
         <Button
-            android:id="@+id/btnKeyEnter"
+            android:id="@+id/btnKeyVolUp"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:layout_marginStart="4dp"
-            android:text="Enter"
+            android:layout_marginStart="3dp"
+            android:text="🔊 +"
             android:textSize="11sp"
-            android:backgroundTint="#161B22"
-            android:textColor="#C9D1D9" />
+            android:backgroundTint="#21262D"
+            android:textColor="#58A6FF" />
 
         <Button
-            android:id="@+id/btnKeyBackspace"
+            android:id="@+id/btnKeyPlayPause"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:layout_marginStart="4dp"
-            android:text="⌫ Del"
+            android:layout_marginStart="3dp"
+            android:text="⏯️ Play"
             android:textSize="11sp"
-            android:backgroundTint="#161B22"
+            android:backgroundTint="#21262D"
+            android:textColor="#58A6FF" />
+
+        <Button
+            android:id="@+id/btnKeyMute"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="3dp"
+            android:text="🔇 Mute"
+            android:textSize="11sp"
+            android:backgroundTint="#21262D"
+            android:textColor="#8B949E" />
+
+        <Button
+            android:id="@+id/btnKeyTab"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="0.9"
+            android:layout_marginStart="3dp"
+            android:text="Tab"
+            android:textSize="11sp"
+            android:backgroundTint="#21262D"
             android:textColor="#C9D1D9" />
 
         <Button
             android:id="@+id/btnKeyEsc"
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:layout_marginStart="4dp"
+            android:layout_weight="0.9"
+            android:layout_marginStart="3dp"
             android:text="Esc"
             android:textSize="11sp"
-            android:backgroundTint="#161B22"
-            android:textColor="#C9D1D9" />
+            android:backgroundTint="#21262D"
+            android:textColor="#F85149" />
     </LinearLayout>
 
-    <!-- Text Typing Bar -->
+    <!-- Navigation & Arrow Keys Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="36dp"
+        android:orientation="horizontal"
+        android:layout_marginTop="4dp">
+
+        <Button
+            android:id="@+id/btnKeySpace"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1.2"
+            android:text="Space"
+            android:textSize="11sp"
+            android:backgroundTint="#21262D"
+            android:textColor="#C9D1D9" />
+
+        <Button
+            android:id="@+id/btnKeyBackspace"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1.1"
+            android:layout_marginStart="3dp"
+            android:text="⌫ Del"
+            android:textSize="11sp"
+            android:backgroundTint="#21262D"
+            android:textColor="#C9D1D9" />
+
+        <Button
+            android:id="@+id/btnKeyEnter"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1.1"
+            android:layout_marginStart="3dp"
+            android:text="⏎ Enter"
+            android:textSize="11sp"
+            android:backgroundTint="#1F6FEB"
+            android:textColor="#FFFFFF" />
+
+        <Button
+            android:id="@+id/btnKeyLeft"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="0.9"
+            android:layout_marginStart="3dp"
+            android:text="◀"
+            android:textSize="12sp"
+            android:backgroundTint="#21262D"
+            android:textColor="#58A6FF" />
+
+        <Button
+            android:id="@+id/btnKeyUp"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="0.9"
+            android:layout_marginStart="3dp"
+            android:text="▲"
+            android:textSize="12sp"
+            android:backgroundTint="#21262D"
+            android:textColor="#58A6FF" />
+
+        <Button
+            android:id="@+id/btnKeyDown"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="0.9"
+            android:layout_marginStart="3dp"
+            android:text="▼"
+            android:textSize="12sp"
+            android:backgroundTint="#21262D"
+            android:textColor="#58A6FF" />
+
+        <Button
+            android:id="@+id/btnKeyRight"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="0.9"
+            android:layout_marginStart="3dp"
+            android:text="▶"
+            android:textSize="12sp"
+            android:backgroundTint="#21262D"
+            android:textColor="#58A6FF" />
+    </LinearLayout>
+
+    <!-- Text Typing Bar with Keyboard Launcher -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="44dp"
         android:orientation="horizontal"
-        android:layout_marginTop="8dp">
+        android:layout_marginTop="6dp">
+
+        <Button
+            android:id="@+id/btnShowKeyboard"
+            android:layout_width="44dp"
+            android:layout_height="match_parent"
+            android:text="⌨️"
+            android:textSize="16sp"
+            android:backgroundTint="#21262D"
+            android:padding="0dp"
+            android:textColor="#FFFFFF" />
 
         <EditText
             android:id="@+id/etTextInput"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:hint="Type text to PC..."
+            android:layout_marginStart="4dp"
+            android:hint="Type &amp; press Enter to send..."
             android:textColorHint="#6E7681"
             android:textColor="#FFFFFF"
             android:background="#161B22"
-            android:paddingHorizontal="10dp"
-            android:textSize="13sp" />
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp"
+            android:textSize="13sp"
+            android:inputType="text|textCapSentences"
+            android:imeOptions="actionSend" />
 
         <Button
             android:id="@+id/btnSendText"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
-            android:layout_marginStart="6dp"
+            android:layout_marginStart="4dp"
             android:text="Send"
             android:textSize="12sp"
-            android:backgroundTint="#1F6FEB"
+            android:backgroundTint="#238636"
             android:textColor="#FFFFFF" />
     </LinearLayout>
 
