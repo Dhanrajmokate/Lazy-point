@@ -14,7 +14,24 @@ This document specifies exactly what the Android app sends to `remote_pointer.ex
 - Keep outgoing commands ordered on one writer. Bound the movement queue so old gyro samples do not build up during slow connections. Never reorder button events or typed text.
 - Recommended: enable `TCP_NODELAY` on the Android socket. The PC enables it on accepted connections.
 
-## Pair/authenticate first
+## Auto-Discovery (UDP Port 47622)
+
+To avoid manual IP typing, the PC receiver supports auto-discovery over UDP:
+- **PC UDP Listener & Beacon:** The PC listens on UDP port `47622` and broadcasts a beacon every 2 seconds:
+  ```text
+  LAZY_POINT_BEACON <hostname> <tcp_port>\n
+  ```
+- **Android Probe:** When the Android app opens, it sends a UDP broadcast to `255.255.255.255:47622`:
+  ```text
+  LAZY_POINT_DISCOVER
+  ```
+  The PC immediately responds with:
+  ```text
+  LAZY_POINT_OFFER <hostname> <tcp_port>\n
+  ```
+The Android app extracts the PC's IP and name, and connects automatically!
+
+## Pair/authenticate (With Persistent Device Memory)
 
 When a client connects, the PC sends:
 
@@ -22,13 +39,36 @@ When a client connects, the PC sends:
 PAIRING_REQUIRED\n
 ```
 
-The user enters the eight-digit PIN printed in the PC console. Android sends:
+### 1. First-Time Pairing (With PIN)
+The user enters the eight-digit PIN printed in the PC console. Android sends its unique device ID:
 
 ```text
-AUTH 01234567\n
+AUTH 01234567 <device_id>\n
 ```
 
-Replace `01234567` with the displayed PIN, preserving leading zeros. The PC replies `OK\n` if it matches, otherwise `ERR auth\n` and closes the connection. Authenticate within 10 seconds of acceptance. Send no control commands until authentication has succeeded. Reconnect and authenticate again after a disconnect. The PIN stays the same until the PC receiver restarts.
+If the PIN matches, the PC generates a permanent authentication token, saves the device in `paired_devices.txt`, and replies:
+
+```text
+OK TOKEN 8f2a1b9c3e4d5f60718293a4b5c6d7e8\n
+```
+
+Android securely stores this token in `SharedPreferences`.
+
+### 2. Reconnecting (Zero PIN — 100% Automatic)
+Every subsequent time the Android app connects (even if the PC was rebooted or receiver restarted), Android sends:
+
+```text
+AUTH_TOKEN <device_id> <saved_token>\n
+```
+
+The PC verifies the token against `paired_devices.txt` and replies:
+
+```text
+OK\n
+```
+
+Authentication completes instantly without prompting for a PIN! If a device is revoked or forgotten, the PC replies `ERR auth\n`.
+
 
 ## Control command format
 

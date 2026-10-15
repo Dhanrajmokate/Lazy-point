@@ -4,9 +4,13 @@
 #include <ws2tcpip.h>
 
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <string_view>
 #include <vector>
+#include <map>
+#include <mutex>
+#include <thread>
 #include <chrono>
 #include <random>
 #include <iomanip>
@@ -24,10 +28,60 @@ volatile bool g_running = true;
 bool g_leftButtonDown = false;
 bool g_rightButtonDown = false;
 
+// Persistent paired devices: deviceId -> token
+std::map<std::string, std::string> g_pairedDevices;
+std::mutex g_pairedMutex;
+const std::string PAIRED_FILE = "paired_devices.txt";
+
+void LoadPairedDevices() {
+    std::lock_guard<std::mutex> lock(g_pairedMutex);
+    g_pairedDevices.clear();
+    std::ifstream f(PAIRED_FILE);
+    if (!f.is_open()) return;
+
+    std::string line;
+    while (std::getline(f, line)) {
+        std::istringstream iss(line);
+        std::string devId, token;
+        if (iss >> devId >> token) {
+            g_pairedDevices[devId] = token;
+        }
+    }
+}
+
+void SavePairedDevice(const std::string& devId, const std::string& token) {
+    std::lock_guard<std::mutex> lock(g_pairedMutex);
+    g_pairedDevices[devId] = token;
+
+    std::ofstream f(PAIRED_FILE, std::ios::trunc);
+    if (!f.is_open()) return;
+    for (const auto& [id, tok] : g_pairedDevices) {
+        f << id << " " << tok << "\n";
+    }
+}
+
+bool ValidateDeviceToken(const std::string& devId, const std::string& token) {
+    std::lock_guard<std::mutex> lock(g_pairedMutex);
+    auto it = g_pairedDevices.find(devId);
+    if (it != g_pairedDevices.end() && it->second == token) {
+        return true;
+    }
+    return false;
+}
+
+std::string GenerateRandomToken() {
+    std::random_device rd;
+    std::mt19937_64 gen(rd());
+    std::uniform_int_distribution<uint64_t> dis;
+    std::ostringstream ss;
+    ss << std::hex << std::setfill('0') << std::setw(16) << dis(gen)
+       << std::setw(16) << dis(gen);
+    return ss.str();
+}
+
 BOOL WINAPI ConsoleCtrlHandler(DWORD dwCtrlType) {
     if (dwCtrlType == CTRL_C_EVENT || dwCtrlType == CTRL_CLOSE_EVENT || dwCtrlType == CTRL_BREAK_EVENT) {
         g_running = false;
-        // Release mouse buttons on interrupt
         if (g_leftButtonDown) {
             INPUT inp = {};
             inp.type = INPUT_MOUSE;
@@ -69,14 +123,10 @@ bool SendAll(SOCKET sock, const std::string& data, int timeoutMs = 2000) {
         tv.tv_usec = (timeoutMs % 1000) * 1000;
 
         int sel = select(0, nullptr, &writeSet, nullptr, &tv);
-        if (sel <= 0) {
-            return false;
-        }
+        if (sel <= 0) return false;
 
         int sent = send(sock, data.data() + totalSent, static_cast<int>(data.size() - totalSent), 0);
-        if (sent <= 0) {
-            return false;
-        }
+        if (sent <= 0) return false;
         totalSent += sent;
     }
     return totalSent == data.size();
@@ -110,7 +160,7 @@ bool InjectKey(WORD vk) {
     INPUT inps[2] = {};
     inps[0].type = INPUT_KEYBOARD;
     inps[0].ki.wVk = vk;
-    inps[0].ki.dwFlags = 0; // Key down
+    inps[0].ki.dwFlags = 0;
 
     inps[1].type = INPUT_KEYBOARD;
     inps[1].ki.wVk = vk;
@@ -136,12 +186,9 @@ bool InjectUnicodeChar(wchar_t ch) {
     return result == 2;
 }
 
-// Base64 decode
 bool Base64Decode(std::string_view input, std::vector<uint8_t>& output) {
     output.clear();
-    if (input.empty() || input.size() % 4 != 0) {
-        return false;
-    }
+    if (input.empty() || input.size() % 4 != 0) return false;
 
     auto decode_char = [](char c) -> int {
         if (c >= 'A' && c <= 'Z') return c - 'A';
@@ -164,7 +211,6 @@ bool Base64Decode(std::string_view input, std::vector<uint8_t>& output) {
         if (b2 == -2 || b3 == -2) return false;
 
         if (b2 == -1) {
-            // Must have = at end
             if (b3 != -1 || i + 4 != len) return false;
             output.push_back(static_cast<uint8_t>((b0 << 2) | (b1 >> 4)));
         } else if (b3 == -1) {
@@ -180,11 +226,9 @@ bool Base64Decode(std::string_view input, std::vector<uint8_t>& output) {
     return !output.empty();
 }
 
-// Validate UTF-8 and ensure no control characters U+0000..U+001F and U+007F..U+009F
 bool ValidateAndConvertUTF8(const std::vector<uint8_t>& utf8Bytes, std::wstring& outUtf16) {
     if (utf8Bytes.empty()) return false;
 
-    // Check control characters in raw UTF-8
     int requiredChars = MultiByteToWideChar(
         CP_UTF8,
         MB_ERR_INVALID_CHARS,
@@ -208,7 +252,6 @@ bool ValidateAndConvertUTF8(const std::vector<uint8_t>& utf8Bytes, std::wstring&
 
     if (converted != requiredChars) return false;
 
-    // Check for disallowed control chars: U+0000..U+001F and U+007F..U+009F
     for (wchar_t wch : outUtf16) {
         if ((wch <= 0x001F) || (wch >= 0x007F && wch <= 0x009F)) {
             return false;
@@ -247,7 +290,7 @@ bool ParseInt(std::string_view s, int& outVal) {
     for (; i < s.size(); ++i) {
         if (!std::isdigit(static_cast<unsigned char>(s[i]))) return false;
         val = val * 10 + (s[i] - '0');
-        if (val > 100000) return false; // Bounds check
+        if (val > 100000) return false;
     }
 
     if (negative) val = -val;
@@ -266,10 +309,87 @@ void CleanButtons() {
     }
 }
 
+std::string GetHostNameString() {
+    char hName[256] = {};
+    if (gethostname(hName, sizeof(hName)) == 0) {
+        return std::string(hName);
+    }
+    return "Windows-PC";
+}
+
+// Background thread for UDP auto-discovery (Port 47622)
+void UdpDiscoveryThread(int tcpPort) {
+    SOCKET udpSock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (udpSock == INVALID_SOCKET) return;
+
+    int opt = 1;
+    setsockopt(udpSock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&opt), sizeof(opt));
+    setsockopt(udpSock, SOL_SOCKET, SO_BROADCAST, reinterpret_cast<const char*>(&opt), sizeof(opt));
+
+    sockaddr_in bindAddr = {};
+    bindAddr.sin_family = AF_INET;
+    bindAddr.sin_port = htons(47622);
+    bindAddr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(udpSock, reinterpret_cast<sockaddr*>(&bindAddr), sizeof(bindAddr)) == SOCKET_ERROR) {
+        closesocket(udpSock);
+        return;
+    }
+
+    u_long nonblock = 1;
+    ioctlsocket(udpSock, FIONBIO, &nonblock);
+
+    std::string pcName = GetHostNameString();
+    std::string offerMsg = "LAZY_POINT_OFFER " + pcName + " " + std::to_string(tcpPort) + "\n";
+    std::string beaconMsg = "LAZY_POINT_BEACON " + pcName + " " + std::to_string(tcpPort) + "\n";
+
+    sockaddr_in bcastAddr = {};
+    bcastAddr.sin_family = AF_INET;
+    bcastAddr.sin_port = htons(47622);
+    bcastAddr.sin_addr.s_addr = INADDR_BROADCAST;
+
+    auto lastBeaconTime = std::chrono::steady_clock::now();
+
+    char buf[512];
+    while (g_running) {
+        fd_set readSet;
+        FD_ZERO(&readSet);
+        FD_SET(udpSock, &readSet);
+
+        timeval tv;
+        tv.tv_sec = 0;
+        tv.tv_usec = 300000; // 300ms
+
+        int sel = select(0, &readSet, nullptr, nullptr, &tv);
+        if (sel > 0) {
+            sockaddr_in senderAddr = {};
+            int senderLen = sizeof(senderAddr);
+            int n = recvfrom(udpSock, buf, sizeof(buf) - 1, 0, reinterpret_cast<sockaddr*>(&senderAddr), &senderLen);
+            if (n > 0) {
+                buf[n] = '\0';
+                std::string req(buf);
+                if (req.find("LAZY_POINT_DISCOVER") != std::string::npos) {
+                    sendto(udpSock, offerMsg.c_str(), static_cast<int>(offerMsg.size()), 0,
+                           reinterpret_cast<sockaddr*>(&senderAddr), senderLen);
+                }
+            }
+        }
+
+        // Periodic broadcast beacon every 2 seconds
+        auto now = std::chrono::steady_clock::now();
+        if (std::chrono::duration_cast<std::chrono::seconds>(now - lastBeaconTime).count() >= 2) {
+            sendto(udpSock, beaconMsg.c_str(), static_cast<int>(beaconMsg.size()), 0,
+                   reinterpret_cast<sockaddr*>(&bcastAddr), sizeof(bcastAddr));
+            lastBeaconTime = now;
+        }
+    }
+
+    closesocket(udpSock);
+}
+
 } // namespace
 
 int main(int argc, char* argv[]) {
-    // Configure console UTF-8 output
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
 
@@ -292,6 +412,8 @@ int main(int argc, char* argv[]) {
         std::cerr << "WSAStartup failed.\n";
         return 1;
     }
+
+    LoadPairedDevices();
 
     SOCKET listenSock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (listenSock == INVALID_SOCKET) {
@@ -322,19 +444,25 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Set non-blocking mode on listen socket for clean shutdown
     u_long nonblock = 1;
     ioctlsocket(listenSock, FIONBIO, &nonblock);
 
     std::string currentPin = GeneratePin();
+    std::string pcName = GetHostNameString();
 
     std::cout << "============================================================\n";
-    std::cout << "        Remote Pointer Receiver (TCP Protocol)\n";
+    std::cout << "       🛋️ LAZY POINT RECEIVER (Auto-Discovery & Pairing)\n";
     std::cout << "============================================================\n";
-    std::cout << "Listening on TCP port: " << port << "\n";
-    std::cout << "Pairing PIN:          [" << currentPin << "]\n";
-    std::cout << "Waiting for phone connection... (Press Ctrl+C to stop)\n";
+    std::cout << "PC Name:              " << pcName << "\n";
+    std::cout << "TCP Port:             " << port << "\n";
+    std::cout << "UDP Auto-Discovery:   Active on port 47622\n";
+    std::cout << "Pairing PIN (First):  [" << currentPin << "]\n";
+    std::cout << "Remembered Devices:   " << g_pairedDevices.size() << " saved\n";
+    std::cout << "Status:               Waiting for phone... (Press Ctrl+C to stop)\n";
     std::cout << "============================================================\n";
+
+    // Launch UDP auto-discovery thread
+    std::thread discoveryThread(UdpDiscoveryThread, port);
 
     while (g_running) {
         fd_set readSet;
@@ -343,38 +471,29 @@ int main(int argc, char* argv[]) {
 
         timeval tv;
         tv.tv_sec = 0;
-        tv.tv_usec = 200000; // 200ms
+        tv.tv_usec = 200000;
 
         int sel = select(0, &readSet, nullptr, nullptr, &tv);
-        if (sel <= 0) {
-            continue;
-        }
+        if (sel <= 0) continue;
 
         sockaddr_in clientAddr = {};
         int clientLen = sizeof(clientAddr);
         SOCKET clientSock = accept(listenSock, reinterpret_cast<sockaddr*>(&clientAddr), &clientLen);
-        if (clientSock == INVALID_SOCKET) {
-            continue;
-        }
+        if (clientSock == INVALID_SOCKET) continue;
 
-        // Set TCP_NODELAY
         int flag = 1;
         setsockopt(clientSock, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<const char*>(&flag), sizeof(flag));
-
-        // Set non-blocking mode
         ioctlsocket(clientSock, FIONBIO, &nonblock);
 
         char clientIp[INET_ADDRSTRLEN] = {};
         inet_ntop(AF_INET, &(clientAddr.sin_addr), clientIp, INET_ADDRSTRLEN);
-        std::cout << "\n[+] Client connected from: " << clientIp << "\n";
+        std::cout << "\n[+] Phone connected from: " << clientIp << "\n";
 
-        // Send PAIRING_REQUIRED\n
         if (!SendAll(clientSock, "PAIRING_REQUIRED\n")) {
             closesocket(clientSock);
             continue;
         }
 
-        // Authentication state
         bool authenticated = false;
         auto authDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
         auto inactivityDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(15);
@@ -383,7 +502,6 @@ int main(int argc, char* argv[]) {
 
         std::string buffer;
         buffer.reserve(8192);
-
         char recvBuf[2048];
 
         while (g_running) {
@@ -410,51 +528,83 @@ int main(int argc, char* argv[]) {
 
             timeval cTv;
             cTv.tv_sec = 0;
-            cTv.tv_usec = 100000; // 100ms
+            cTv.tv_usec = 100000;
 
             int cSel = select(0, &cReadSet, nullptr, nullptr, &cTv);
-            if (cSel < 0) {
-                break; // Socket error
-            }
+            if (cSel < 0) break;
 
             if (cSel > 0) {
                 int bytesRead = recv(clientSock, recvBuf, sizeof(recvBuf), 0);
-                if (bytesRead <= 0) {
-                    break; // Disconnected
-                }
+                if (bytesRead <= 0) break;
 
                 if (!lineStarted) {
                     lineStarted = true;
                     lineStartDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
                 }
 
-                // Append and process lines
                 for (int i = 0; i < bytesRead; ++i) {
                     char ch = recvBuf[i];
                     if (ch == '\n') {
-                        // Strip trailing '\r' if present
                         if (!buffer.empty() && buffer.back() == '\r') {
                             buffer.pop_back();
                         }
 
-                        // Process the complete line
                         lineStarted = false;
 
                         if (!authenticated) {
-                            if (buffer == "AUTH " + currentPin) {
-                                authenticated = true;
-                                inactivityDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(15);
-                                if (!SendAll(clientSock, "OK\n")) break;
-                                std::cout << "[+] Authentication successful.\n";
+                            std::istringstream iss(buffer);
+                            std::string authType;
+                            iss >> authType;
+
+                            if (authType == "AUTH_TOKEN") {
+                                // Fast reconnect with persistent token (NO PIN NEEDED)
+                                std::string devId, token;
+                                if (iss >> devId >> token && ValidateDeviceToken(devId, token)) {
+                                    authenticated = true;
+                                    inactivityDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(15);
+                                    if (!SendAll(clientSock, "OK\n")) break;
+                                    std::cout << "[+] Device recognized! Authenticated automatically via token.\n";
+                                } else {
+                                    SendAll(clientSock, "ERR auth\n");
+                                    std::cout << "[-] Token validation failed.\n";
+                                    closesocket(clientSock);
+                                    clientSock = INVALID_SOCKET;
+                                    break;
+                                }
+                            } else if (authType == "AUTH") {
+                                std::string pin, devId;
+                                iss >> pin;
+                                iss >> devId; // optional device ID
+
+                                if (pin == currentPin) {
+                                    authenticated = true;
+                                    inactivityDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(15);
+
+                                    if (!devId.empty()) {
+                                        // Generate and save token for this device
+                                        std::string token = GenerateRandomToken();
+                                        SavePairedDevice(devId, token);
+                                        std::cout << "[+] Device paired and saved for future auto-connections!\n";
+                                        if (!SendAll(clientSock, "OK TOKEN " + token + "\n")) break;
+                                    } else {
+                                        if (!SendAll(clientSock, "OK\n")) break;
+                                        std::cout << "[+] PIN authentication successful.\n";
+                                    }
+                                } else {
+                                    SendAll(clientSock, "ERR auth\n");
+                                    std::cout << "[-] PIN authentication failed.\n";
+                                    closesocket(clientSock);
+                                    clientSock = INVALID_SOCKET;
+                                    break;
+                                }
                             } else {
                                 SendAll(clientSock, "ERR auth\n");
-                                std::cout << "[-] Authentication failed.\n";
                                 closesocket(clientSock);
                                 clientSock = INVALID_SOCKET;
                                 break;
                             }
                         } else {
-                            // Process authenticated command
+                            // Authenticated command
                             std::string_view line = buffer;
 
                             if (line == "PING") {
@@ -588,11 +738,14 @@ int main(int argc, char* argv[]) {
         if (clientSock != INVALID_SOCKET) {
             closesocket(clientSock);
         }
-        std::cout << "[-] Client session ended.\n";
+        std::cout << "[-] Phone session ended.\n";
     }
 
     CleanButtons();
     closesocket(listenSock);
+    if (discoveryThread.joinable()) {
+        discoveryThread.join();
+    }
     WSACleanup();
     std::cout << "[*] Receiver shut down cleanly.\n";
     return 0;

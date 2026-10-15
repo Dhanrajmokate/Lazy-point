@@ -2,6 +2,7 @@ package com.lazypoint.remote
 
 import android.app.Activity
 import android.content.Context
+import android.content.SharedPreferences
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -11,10 +12,13 @@ import android.os.Vibrator
 import android.view.MotionEvent
 import android.view.View
 import android.widget.*
+import java.util.UUID
 import kotlin.math.abs
 
 class MainActivity : Activity(), SensorEventListener, RemotePointerClient.Listener {
 
+    private lateinit var tvDiscoveryStatus: TextView
+    private lateinit var btnForget: Button
     private lateinit var etIp: EditText
     private lateinit var etPin: EditText
     private lateinit var btnConnect: Button
@@ -27,16 +31,17 @@ class MainActivity : Activity(), SensorEventListener, RemotePointerClient.Listen
     private lateinit var etTextInput: EditText
     private lateinit var btnSendText: Button
 
-    // Quick keys
     private lateinit var btnKeyEnter: Button
     private lateinit var btnKeyBackspace: Button
     private lateinit var btnKeyEsc: Button
     private lateinit var btnKeySpace: Button
 
     private var client: RemotePointerClient? = null
+    private var discoveryManager: DiscoveryManager? = null
     private var sensorManager: SensorManager? = null
     private var gyroSensor: Sensor? = null
     private var vibrator: Vibrator? = null
+    private lateinit var prefs: SharedPreferences
 
     private var isAirMouseEnabled = false
     private var isMotionPaused = false
@@ -46,15 +51,26 @@ class MainActivity : Activity(), SensorEventListener, RemotePointerClient.Listen
     private var fracX = 0.0f
     private var fracY = 0.0f
 
-    // Touchpad state
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     private var touchStartTime = 0L
     private var touchMoved = false
 
+    private var deviceId: String = ""
+    private var savedToken: String? = null
+    private var hasAutoConnected = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        prefs = getSharedPreferences("lazy_point_prefs", Context.MODE_PRIVATE)
+        deviceId = prefs.getString("device_id", null) ?: run {
+            val newId = UUID.randomUUID().toString()
+            prefs.edit().putString("device_id", newId).apply()
+            newId
+        }
+        savedToken = prefs.getString("auth_token", null)
 
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as? SensorManager
         gyroSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
@@ -62,9 +78,13 @@ class MainActivity : Activity(), SensorEventListener, RemotePointerClient.Listen
 
         bindViews()
         setupListeners()
+        updatePairingUI()
+        startAutoDiscovery()
     }
 
     private fun bindViews() {
+        tvDiscoveryStatus = findViewById(R.id.tvDiscoveryStatus)
+        btnForget = findViewById(R.id.btnForget)
         etIp = findViewById(R.id.etIp)
         etPin = findViewById(R.id.etPin)
         btnConnect = findViewById(R.id.btnConnect)
@@ -83,22 +103,71 @@ class MainActivity : Activity(), SensorEventListener, RemotePointerClient.Listen
         btnKeySpace = findViewById(R.id.btnKeySpace)
     }
 
+    private fun updatePairingUI() {
+        val lastIp = prefs.getString("last_ip", "")
+        if (!lastIp.isNullOrEmpty()) {
+            etIp.setText(lastIp)
+        }
+
+        if (!savedToken.isNullOrEmpty()) {
+            etPin.visibility = View.GONE
+            btnForget.visibility = View.VISIBLE
+            tvDiscoveryStatus.text = "⚡ Remembered PC (No PIN needed)"
+        } else {
+            etPin.visibility = View.VISIBLE
+            btnForget.visibility = View.GONE
+        }
+    }
+
+    private fun startAutoDiscovery() {
+        discoveryManager = DiscoveryManager(this) { ip, name, port ->
+            runOnUiThread {
+                tvDiscoveryStatus.text = "🖥️ Found: $name ($ip)"
+                etIp.setText(ip)
+                prefs.edit().putString("last_ip", ip).apply()
+
+                // Auto-connect if we have a saved token for this PC
+                if (!savedToken.isNullOrEmpty() && client == null && !hasAutoConnected) {
+                    hasAutoConnected = true
+                    tvStatus.text = "Auto-connecting to $name..."
+                    doConnect(ip, port, token = savedToken, pin = null)
+                }
+            }
+        }
+        discoveryManager?.startDiscovery()
+    }
+
     private fun vibrate(ms: Long = 15) {
         try { vibrator?.vibrate(ms) } catch (_: Exception) {}
     }
 
     private fun setupListeners() {
+        btnForget.setOnClickListener {
+            vibrate(20)
+            prefs.edit().remove("auth_token").apply()
+            savedToken = null
+            updatePairingUI()
+            Toast.makeText(this, "Device forgotten. Enter PIN to pair again.", Toast.LENGTH_SHORT).show()
+        }
+
         btnConnect.setOnClickListener {
             if (client == null) {
                 val ip = etIp.text.toString().trim()
-                val pin = etPin.text.toString().trim()
-                if (ip.isEmpty() || pin.length != 8) {
-                    Toast.makeText(this, "Enter valid IP and 8-digit PIN", Toast.LENGTH_SHORT).show()
+                if (ip.isEmpty()) {
+                    Toast.makeText(this, "Enter or discover PC IP first", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
-                tvStatus.text = "Connecting..."
-                client = RemotePointerClient(ip, 47621, pin, this)
-                client?.connect()
+
+                if (!savedToken.isNullOrEmpty()) {
+                    doConnect(ip, 47621, token = savedToken, pin = null)
+                } else {
+                    val pin = etPin.text.toString().trim()
+                    if (pin.length != 8) {
+                        Toast.makeText(this, "Enter the 8-digit PIN shown on PC", Toast.LENGTH_SHORT).show()
+                        return@setOnClickListener
+                    }
+                    doConnect(ip, 47621, token = null, pin = pin)
+                }
             } else {
                 client?.disconnect("User disconnected")
                 client = null
@@ -124,7 +193,6 @@ class MainActivity : Activity(), SensorEventListener, RemotePointerClient.Listen
             btnRecenter.text = if (isMotionPaused) "Resume Motion" else "Pause Motion"
         }
 
-        // Mouse buttons: DOWN on press, UP on release
         btnLeftClick.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
@@ -155,7 +223,6 @@ class MainActivity : Activity(), SensorEventListener, RemotePointerClient.Listen
             }
         }
 
-        // Touchpad fallback listener
         viewTouchpad.setOnTouchListener { _, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
@@ -197,7 +264,6 @@ class MainActivity : Activity(), SensorEventListener, RemotePointerClient.Listen
             }
         }
 
-        // Text input and special keys
         btnSendText.setOnClickListener {
             val text = etTextInput.text.toString()
             if (text.isNotEmpty()) {
@@ -211,6 +277,12 @@ class MainActivity : Activity(), SensorEventListener, RemotePointerClient.Listen
         btnKeyBackspace.setOnClickListener { vibrate(15); client?.key("BACKSPACE") }
         btnKeyEsc.setOnClickListener { vibrate(15); client?.key("ESC") }
         btnKeySpace.setOnClickListener { vibrate(15); client?.key("SPACE") }
+    }
+
+    private fun doConnect(ip: String, port: Int, token: String?, pin: String?) {
+        tvStatus.text = "Connecting..."
+        client = RemotePointerClient(ip, port, deviceId, pin, token, this)
+        client?.connect()
     }
 
     private fun enableAirMouse(enable: Boolean) {
@@ -227,11 +299,9 @@ class MainActivity : Activity(), SensorEventListener, RemotePointerClient.Listen
     override fun onSensorChanged(event: SensorEvent?) {
         if (!isAirMouseEnabled || isMotionPaused || event == null) return
         if (event.sensor.type == Sensor.TYPE_GYROSCOPE) {
-            val rawPitch = event.values[0] // X-axis angular speed
-            val rawYaw = event.values[1]   // Y-axis angular speed
-            val rawRoll = event.values[2]  // Z-axis angular speed
+            val rawPitch = event.values[0]
+            val rawRoll = event.values[2]
 
-            // Filter dead zone
             val gyroX = if (abs(rawRoll) > deadZone) -rawRoll else 0f
             val gyroY = if (abs(rawPitch) > deadZone) -rawPitch else 0f
 
@@ -259,20 +329,33 @@ class MainActivity : Activity(), SensorEventListener, RemotePointerClient.Listen
         runOnUiThread { tvStatus.text = "Connected (Authenticating...)" }
     }
 
-    override fun onAuthenticated() {
+    override fun onAuthenticated(token: String?) {
         runOnUiThread {
             vibrate(40)
             tvStatus.text = "● Connected & Paired"
             btnConnect.text = "Disconnect"
+
+            if (!token.isNullOrEmpty()) {
+                savedToken = token
+                prefs.edit().putString("auth_token", token).apply()
+                updatePairingUI()
+            }
         }
     }
 
-    override fun onAuthFailed() {
+    override fun onAuthFailed(reason: String) {
         runOnUiThread {
-            Toast.makeText(this, "Authentication failed. Check PIN.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Authentication failed: $reason", Toast.LENGTH_LONG).show()
             tvStatus.text = "Auth Failed"
             btnConnect.text = "Connect"
             client = null
+
+            // If token failed, clear it so user can enter PIN
+            if (!savedToken.isNullOrEmpty()) {
+                prefs.edit().remove("auth_token").apply()
+                savedToken = null
+                updatePairingUI()
+            }
         }
     }
 
@@ -293,6 +376,7 @@ class MainActivity : Activity(), SensorEventListener, RemotePointerClient.Listen
 
     override fun onDestroy() {
         super.onDestroy()
+        discoveryManager?.stopDiscovery()
         enableAirMouse(false)
         client?.disconnect()
     }

@@ -18,13 +18,15 @@ import java.util.concurrent.atomic.AtomicBoolean
 class RemotePointerClient(
     private val host: String,
     private val port: Int,
-    private val pin: String,
+    private val deviceId: String,
+    private val pin: String?,
+    private val savedToken: String?,
     private val listener: Listener
 ) {
     interface Listener {
         fun onConnected()
-        fun onAuthenticated()
-        fun onAuthFailed()
+        fun onAuthenticated(token: String?)
+        fun onAuthFailed(reason: String)
         fun onDisconnected(reason: String)
         fun onError(message: String)
     }
@@ -56,7 +58,7 @@ class RemotePointerClient(
             try {
                 val sock = Socket()
                 sock.tcpNoDelay = true
-                sock.connect(InetSocketAddress(host, port), 5000)
+                sock.connect(InetSocketAddress(host, port), 4000)
 
                 socket = sock
                 val outStream = BufferedWriter(OutputStreamWriter(sock.getOutputStream(), StandardCharsets.US_ASCII))
@@ -66,7 +68,6 @@ class RemotePointerClient(
 
                 listener.onConnected()
 
-                // Wait for PAIRING_REQUIRED\n
                 val greeting = inStream.readLine()
                 if (greeting != "PAIRING_REQUIRED") {
                     listener.onError("Unexpected greeting: $greeting")
@@ -74,18 +75,43 @@ class RemotePointerClient(
                     return@Thread
                 }
 
-                // Send AUTH <pin>\n
-                outStream.write("AUTH $pin\n")
-                outStream.flush()
+                // Authenticate: Use saved token if available, otherwise use PIN
+                if (!savedToken.isNullOrEmpty()) {
+                    outStream.write("AUTH_TOKEN $deviceId $savedToken\n")
+                    outStream.flush()
 
-                val authReply = inStream.readLine()
-                if (authReply == "OK") {
-                    isAuthenticated.set(true)
-                    listener.onAuthenticated()
-                    startWorkerThreads()
+                    val authReply = inStream.readLine()
+                    if (authReply == "OK") {
+                        isAuthenticated.set(true)
+                        listener.onAuthenticated(savedToken)
+                        startWorkerThreads()
+                    } else {
+                        listener.onAuthFailed("Token expired or rejected")
+                        disconnect("Token rejected")
+                    }
+                } else if (!pin.isNullOrEmpty()) {
+                    outStream.write("AUTH $pin $deviceId\n")
+                    outStream.flush()
+
+                    val authReply = inStream.readLine()
+                    if (authReply != null && authReply.startsWith("OK")) {
+                        isAuthenticated.set(true)
+                        var receivedToken: String? = null
+                        if (authReply.contains("TOKEN ")) {
+                            val parts = authReply.split(" ")
+                            if (parts.size >= 3) {
+                                receivedToken = parts[2]
+                            }
+                        }
+                        listener.onAuthenticated(receivedToken)
+                        startWorkerThreads()
+                    } else {
+                        listener.onAuthFailed("PIN rejected")
+                        disconnect("PIN rejected")
+                    }
                 } else {
-                    listener.onAuthFailed()
-                    disconnect("Authentication failed")
+                    listener.onAuthFailed("No credentials provided")
+                    disconnect("No credentials")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Connection error", e)
@@ -96,7 +122,6 @@ class RemotePointerClient(
     }
 
     private fun startWorkerThreads() {
-        // Continuous reader thread
         readerThread = Thread {
             try {
                 val inStream = reader ?: return@Thread
@@ -118,7 +143,6 @@ class RemotePointerClient(
             }
         }.apply { start() }
 
-        // Outgoing command writer thread
         senderThread = Thread {
             try {
                 val outStream = writer ?: return@Thread
@@ -138,7 +162,6 @@ class RemotePointerClient(
             }
         }.apply { start() }
 
-        // Keepalive PING executor every 5 seconds
         pingExecutor = Executors.newSingleThreadScheduledExecutor().apply {
             scheduleAtFixedRate({
                 if (isAuthenticated.get()) {
@@ -152,7 +175,6 @@ class RemotePointerClient(
         if (!isAuthenticated.get()) return
 
         if (isMovement) {
-            // Keep movement queue bounded so old gyro samples do not queue up
             if (commandQueue.size > MAX_MOTION_QUEUE) {
                 commandQueue.poll()
             }
@@ -189,7 +211,6 @@ class RemotePointerClient(
         if (b64.length <= 6000) {
             sendCommand("TEXT $b64\n")
         } else {
-            // Split into smaller chunks if necessary
             var offset = 0
             while (offset < text.length) {
                 val chunk = text.substring(offset, (offset + 1000).coerceAtMost(text.length))
@@ -206,7 +227,6 @@ class RemotePointerClient(
         isAuthenticated.set(false)
 
         try {
-            // Send release for any held buttons before closing
             if (heldLeftButton) {
                 writer?.write("BUTTON LEFT UP\n")
                 heldLeftButton = false
