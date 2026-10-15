@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Lazy Point — Remote Controller</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Bar -->
+    <header class="top-bar">
+      <div class="brand">
+        <span class="brand-icon">🛋️</span>
+        <span class="brand-name">Lazy Point</span>
+      </div>
+      <div class="status-badge" id="statusBadge">
+        <span class="status-dot"></span>
+        <span class="status-text" id="statusText">Connecting...</span>
+      </div>
+      <button class="icon-btn" id="settingsToggle" title="Settings">⚙️</button>
+    </header>
+
+    <!-- Settings Drawer (Collapsible) -->
+    <div class="settings-drawer" id="settingsDrawer">
+      <div class="setting-item">
+        <label for="sensSlider">Trackpad Sensitivity: <span id="sensValue">1.6x</span></label>
+        <input type="range" id="sensSlider" min="0.5" max="3.5" step="0.1" value="1.6">
+      </div>
+      <div class="setting-item toggle-item">
+        <label for="hapticToggle">Vibration / Haptics</label>
+        <input type="checkbox" id="hapticToggle" checked>
+      </div>
+    </div>
+
+    <!-- Main Touchpad Zone -->
+    <main class="trackpad-wrapper">
+      <div class="trackpad" id="trackpad">
+        <div class="trackpad-hint" id="trackpadHint">
+          <span>👆 Drag to Move Cursor</span>
+          <small>Tap for Left Click • 2-Finger Tap for Right Click</small>
+        </div>
+        <!-- Virtual touch ripple -->
+        <div class="touch-pointer" id="touchPointer"></div>
+      </div>
+
+      <!-- Mouse Click Bar -->
+      <div class="mouse-buttons">
+        <button class="mouse-btn left-click" id="btnLeftClick">
+          <span>LEFT CLICK</span>
+        </button>
+        <button class="mouse-btn right-click" id="btnRightClick">
+          <span>RIGHT CLICK</span>
+        </button>
+      </div>
+    </main>
+
+    <!-- Media & Movie Deck (Couch Potato Controls) -->
+    <section class="media-deck">
+      <!-- Volume Row -->
+      <div class="deck-row volume-row">
+        <button class="deck-btn vol-btn" id="btnVolDown" title="Volume Down">
+          <span class="btn-icon">🔉</span>
+          <span class="btn-label">Vol -</span>
+        </button>
+        <button class="deck-btn mute-btn" id="btnMute" title="Mute Volume">
+          <span class="btn-icon" id="muteIcon">🔇</span>
+          <span class="btn-label">Mute</span>
+        </button>
+        <button class="deck-btn vol-btn" id="btnVolUp" title="Volume Up">
+          <span class="btn-icon">🔊</span>
+          <span class="btn-label">Vol +</span>
+        </button>
+      </div>
+
+      <!-- Playback Row -->
+      <div class="deck-row playback-row">
+        <button class="deck-btn seek-btn" id="btnSeekBack" title="Seek -10s">
+          <span class="btn-icon">⏪</span>
+          <span class="btn-label">-10s</span>
+        </button>
+        <button class="deck-btn play-btn highlight-btn" id="btnPlayPause" title="Play / Pause">
+          <span class="btn-icon" id="playIcon">⏯️</span>
+          <span class="btn-label">Play / Pause</span>
+        </button>
+        <button class="deck-btn seek-btn" id="btnSeekFwd" title="Seek +10s">
+          <span class="btn-icon">⏩</span>
+          <span class="btn-label">+10s</span>
+        </button>
+      </div>
+
+      <!-- Shortcuts Row -->
+      <div class="deck-row shortcut-row">
+        <button class="deck-btn mini-btn" id="btnFullscreen" title="Fullscreen (F)">
+          <span class="btn-icon">⛶</span>
+          <span class="btn-label">Full</span>
+        </button>
+        <button class="deck-btn mini-btn" id="btnSubtitles" title="Subtitles (C)">
+          <span class="btn-icon">💬</span>
+          <span class="btn-label">Subs</span>
+        </button>
+        <button class="deck-btn mini-btn" id="btnTextKeyboard" title="Type Text">
+          <span class="btn-icon">⌨️</span>
+          <span class="btn-label">Type</span>
+        </button>
+        <button class="deck-btn mini-btn" id="btnEsc" title="Escape">
+          <span class="btn-icon">✕</span>
+          <span class="btn-label">Esc</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Slide-up Text Input Drawer -->
+    <div class="type-modal-backdrop" id="typeModal">
+      <div class="type-sheet">
+        <div class="type-sheet-header">
+          <h3>Type to PC</h3>
+          <button class="close-btn" id="closeTypeModal">✕</button>
+        </div>
+        <div class="type-sheet-body">
+          <input type="text" id="pcTextInput" placeholder="Search Netflix, YouTube..." autocomplete="off">
+          <div class="type-actions">
+            <button class="btn-action" id="btnSendText">Send Text</button>
+            <button class="btn-action btn-secondary" id="btnSendEnter">Enter ↵</button>
+            <button class="btn-action btn-secondary" id="btnSendBackspace">⌫ Del</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
